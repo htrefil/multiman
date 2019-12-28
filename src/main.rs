@@ -23,10 +23,15 @@ const ITERATIONS: u32 = 200;
 
 #[derive(StructOpt)]
 struct Args {
+    #[structopt(help = "Initialization expression")]
     init: Expr,
+    #[structopt(help = "Iteration expression")]
     iter: Expr,
+    #[structopt(help = "Width of the image")]
     width: NonZeroU32,
+    #[structopt(help = "Height of the image")]
     height: NonZeroU32,
+    #[structopt(help = "Path of the resulting image")]
     output_path: PathBuf,
 }
 
