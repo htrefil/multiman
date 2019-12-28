@@ -1,5 +1,6 @@
 # multiman
-A parallel fractal renderer supporting custom user expressions.
+A parallel Mandelbrot and Julia set-style fractal renderer supporting custom user expressions.
+It leverages all available CPU cores to render images in parallel.
 
 ## Usage
 ```
