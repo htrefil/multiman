@@ -1,26 +1,34 @@
 use crate::ast::{BinOp, Expr, ExprKind};
 use crate::error::Error;
 use num_complex::Complex;
-use std::collections::HashMap;
 use std::ops::{Add, Div, Mul, Sub};
 
+#[derive(Default)]
 pub struct Context {
-    vars: HashMap<&'static str, Value>,
+    pub width: f64,
+    pub height: f64,
+    pub x: f64,
+    pub y: f64,
+    pub c: Value,
+    pub z: Value,
 }
 
 impl Context {
-    pub fn new() -> Context {
-        Context {
-            vars: HashMap::new(),
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    #[inline]
+    fn get(&self, name: u8) -> Option<Value> {
+        match name {
+            b'w' => Some(self.width.into()),
+            b'h' => Some(self.height.into()),
+            b'x' => Some(self.x.into()),
+            b'y' => Some(self.y.into()),
+            b'c' => Some(self.c.into()),
+            b'z' => Some(self.z.into()),
+            _ => None,
         }
-    }
-
-    pub fn set(&mut self, name: &'static str, value: impl Into<Value>) {
-        self.vars.insert(name, value.into());
-    }
-
-    pub fn update(&mut self, name: &str, value: impl Into<Value>) {
-        *self.vars.get_mut(name).unwrap() = value.into();
     }
 
     pub fn eval(&self, expr: &Expr) -> Result<Value, Error> {
@@ -34,12 +42,7 @@ impl Context {
                     BinOp::Sub => Ok(left - right),
                     BinOp::Mul => Ok(left * right),
                     BinOp::Div => {
-                        let zero = match right {
-                            Value::Real(num) => num == 0.0,
-                            Value::Complex(num) => num.re == 0.0 && num.im == 0.0,
-                        };
-
-                        if zero {
+                        if right.v == 0.0.into() {
                             return Err(Error {
                                 message: "Divide by zero",
                                 position: expr.position,
@@ -50,31 +53,39 @@ impl Context {
                     }
                 }
             }
-            ExprKind::Var(ref var) => self.vars.get(var.as_str()).cloned().ok_or_else(|| Error {
+            ExprKind::Var(var) => self.get(var).ok_or_else(|| Error {
                 message: "Undefined variable",
                 position: expr.position,
             }),
-            ExprKind::Real(num) => Ok(Value::Real(num)),
-            ExprKind::Imag(num) => Ok(Value::Complex(Complex { re: 0.0, im: num })),
+            ExprKind::Real(num) => Ok(num.into()),
+            ExprKind::Imag(num) => Ok(Complex { re: 0.0, im: num }.into()),
         }
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum Value {
-    Real(f64),
-    Complex(Complex<f64>),
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Value {
+    /// Value of the expression
+    pub v: Complex<f64>,
+    /// Derivative of the expression
+    pub d: Complex<f64>,
 }
 
 impl From<f64> for Value {
     fn from(value: f64) -> Value {
-        Value::Real(value)
+        Value {
+            v: value.into(),
+            d: 0.0.into(),
+        }
     }
 }
 
 impl From<Complex<f64>> for Value {
     fn from(value: Complex<f64>) -> Value {
-        Value::Complex(value)
+        Value {
+            v: value,
+            d: 0.0.into(),
+        }
     }
 }
 
@@ -82,12 +93,9 @@ impl Add for Value {
     type Output = Value;
 
     fn add(self, other: Value) -> Value {
-        match (self, other) {
-            (Value::Real(a), Value::Real(b)) => Value::Real(a + b),
-            (Value::Complex(a), Value::Complex(b)) => Value::Complex(a + b),
-            (Value::Real(a), Value::Complex(b)) | (Value::Complex(b), Value::Real(a)) => {
-                Value::Complex(a + b)
-            }
+        Value {
+            v: self.v + other.v,
+            d: self.d + other.d,
         }
     }
 }
@@ -96,12 +104,9 @@ impl Sub for Value {
     type Output = Value;
 
     fn sub(self, other: Value) -> Value {
-        match (self, other) {
-            (Value::Real(a), Value::Real(b)) => Value::Real(a - b),
-            (Value::Complex(a), Value::Complex(b)) => Value::Complex(a - b),
-            (Value::Real(a), Value::Complex(b)) | (Value::Complex(b), Value::Real(a)) => {
-                Value::Complex(a - b)
-            }
+        Value {
+            v: self.v - other.v,
+            d: self.d - other.d,
         }
     }
 }
@@ -110,12 +115,9 @@ impl Mul for Value {
     type Output = Value;
 
     fn mul(self, other: Value) -> Value {
-        match (self, other) {
-            (Value::Real(a), Value::Real(b)) => Value::Real(a * b),
-            (Value::Complex(a), Value::Complex(b)) => Value::Complex(a * b),
-            (Value::Real(a), Value::Complex(b)) | (Value::Complex(b), Value::Real(a)) => {
-                Value::Complex(a * b)
-            }
+        Value {
+            v: self.v * other.v,
+            d: self.v * other.d + other.v * self.d,
         }
     }
 }
@@ -124,12 +126,9 @@ impl Div for Value {
     type Output = Value;
 
     fn div(self, other: Value) -> Value {
-        match (self, other) {
-            (Value::Real(a), Value::Real(b)) => Value::Real(a / b),
-            (Value::Complex(a), Value::Complex(b)) => Value::Complex(a / b),
-            (Value::Real(a), Value::Complex(b)) | (Value::Complex(b), Value::Real(a)) => {
-                Value::Complex(a / b)
-            }
+        Value {
+            v: self.v / other.v,
+            d: (self.d * other.v - other.d * self.v) / (other.d * other.d),
         }
     }
 }

@@ -52,7 +52,7 @@ impl<'a> Parser<'a> {
             }
             TokenKind::Real(num) => ExprKind::Real(num),
             TokenKind::Imag(num) => ExprKind::Imag(num),
-            TokenKind::Ident(ref ident) => ExprKind::Var(ident.clone()),
+            TokenKind::Ident(ident) => ExprKind::Var(ident),
             _ => return Err(self.error("Unexpected token")),
         };
 

@@ -4,7 +4,7 @@ use std::fmt::{self, Debug, Formatter};
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExprKind {
     Bin(BinOp, Box<Expr>, Box<Expr>),
-    Var(String),
+    Var(u8),
     Real(f64),
     Imag(f64),
 }
