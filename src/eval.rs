@@ -51,6 +51,16 @@ impl Context {
 
                         Ok(left / right)
                     }
+                    BinOp::Pow => {
+                        if right.v == 0.0.into() {
+                            return Err(Error {
+                                message: "Power by zero",
+                                position: expr.position,
+                            });
+                        }
+
+                        Ok(left.pow(right))
+                    }
                 }
             }
             ExprKind::Var(var) => self.get(var).ok_or_else(|| Error {
@@ -69,6 +79,16 @@ pub struct Value {
     pub v: Complex<f64>,
     /// Derivative of the expression
     pub d: Complex<f64>,
+}
+
+impl Value {
+    fn pow(self, other: Value) -> Self {
+        let v = self.v.powc(other.v);
+        Value {
+            v,
+            d: (other.v * self.d / self.v + other.d * self.v.ln()) * v,
+        }
+    }
 }
 
 impl From<f64> for Value {

@@ -27,6 +27,7 @@ pub enum BinOp {
     Sub,
     Mul,
     Div,
+    Pow,
 }
 
 impl BinOp {
@@ -36,6 +37,7 @@ impl BinOp {
             TokenKind::Sub => BinOp::Sub,
             TokenKind::Mul => BinOp::Mul,
             TokenKind::Div => BinOp::Div,
+            TokenKind::Pow => BinOp::Pow,
             _ => return None,
         };
 
@@ -45,7 +47,7 @@ impl BinOp {
     pub fn precedence(&self) -> u32 {
         match self {
             BinOp::Add | BinOp::Sub => 1,
-            BinOp::Mul | BinOp::Div => 2,
+            BinOp::Mul | BinOp::Div | BinOp::Pow => 2,
         }
     }
 }

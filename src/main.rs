@@ -17,14 +17,12 @@ use std::sync::Arc;
 use std::thread;
 use structopt::StructOpt;
 
-const ITERATIONS: u32 = 200;
+const ITERATIONS: u32 = 201;
 
 #[derive(StructOpt)]
 struct Args {
     #[structopt(help = "Initialization expression (the value of the pixel)")]
     init: Expr,
-    #[structopt(help = "Start of the iteration")]
-    first: Expr,
     #[structopt(help = "Iteration expression")]
     iter: Expr,
     #[structopt(help = "Width of the image")]
@@ -85,7 +83,7 @@ fn work(
         }
 
         let (r, dr) = (abs(z.v), abs(z.d));
-        let distance = width as f64 * 0.7 * f64::ln(r) * r / dr;
+        let distance = width as f64 * 0.8 * f64::ln(r) * r / dr;
         let pv = std::cmp::min(f64::floor(255.0 * distance) as u8, 255);
         pixels.push(Rgb([pv, pv, pv]));
     }

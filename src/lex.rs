@@ -14,6 +14,7 @@ pub enum TokenKind {
     Sub,
     Mul,
     Div,
+    Pow,
     Ident(u8),
     Real(f64),
     Imag(f64),
@@ -32,6 +33,7 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>, Error> {
             b'-' => TokenKind::Sub,
             b'*' => TokenKind::Mul,
             b'/' => TokenKind::Div,
+            b'^' => TokenKind::Pow,
             b'w' | b'h' | b'x' | b'y' | b'c' | b'z' => TokenKind::Ident(*c),
             b'i' => TokenKind::Imag(1.0),
             b'0'..=b'9' => {

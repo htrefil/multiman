@@ -32,7 +32,7 @@ y    The current y coordinate
 c    The initial complex value of the current pixel
 z    The value of the previous iteration
 ```
-They can be combined using arithmetic operations.
+They can be combined using arithmetic operations and exponentiation (using the symbol `^`).
 
 ## Examples
 ```
