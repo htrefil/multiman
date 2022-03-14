@@ -1,4 +1,3 @@
-#![feature(process_exitcode_placeholder)]
 mod ast;
 mod error;
 mod eval;
@@ -6,24 +5,23 @@ mod lex;
 mod parser;
 
 use error::Error;
-use eval::{Context, Value};
+use eval::Context;
 use image::{Rgb, RgbImage};
 use num_complex::Complex;
 use std::cmp;
 use std::env;
 use std::num::NonZeroU32;
 use std::path::PathBuf;
-use std::process::ExitCode;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::thread;
 use structopt::StructOpt;
 
-const ITERATIONS: u32 = 200;
+const ITERATIONS: u32 = 201;
 
 #[derive(StructOpt)]
 struct Args {
-    #[structopt(help = "Initialization expression")]
+    #[structopt(help = "Initialization expression (the value of the pixel)")]
     init: Expr,
     #[structopt(help = "Iteration expression")]
     iter: Expr,
@@ -53,6 +51,7 @@ fn abs(num: Complex<f64>) -> f64 {
 
 fn work(
     init: &ast::Expr,
+    first: &ast::Expr,
     iter: &ast::Expr,
     start: u32,
     length: u32,
@@ -60,61 +59,50 @@ fn work(
     height: u32,
 ) -> Result<Vec<Rgb<u8>>, Error> {
     let mut context = Context::new();
-    context.set("WIDTH", width as f64);
-    context.set("HEIGHT", height as f64);
-    context.set("X", 0.0);
-    context.set("Y", 0.0);
-    context.set("Z", 0.0);
+    context.width = width as f64;
+    context.height = height as f64;
 
     let mut pixels = Vec::with_capacity(length as usize);
     for (x, y) in (start..start + length).map(|n| (n % width, n / height)) {
-        context.update("X", x as f64);
-        context.update("Y", y as f64);
+        context.x = x as f64;
+        context.y = y as f64;
 
-        let mut z = match context.eval(&init)? {
-            Value::Complex(z) => z,
-            _ => {
-                return Err(Error {
-                    message: "Init did not evaluate to a complex number",
-                    position: init.position,
-                });
-            }
-        };
+        let mut init = context.eval(&init)?;
+        init.d = 1.0.into();
+        context.c = init;
 
-        let mut pixel = Rgb([0, 0, 0]);
-        for i in 0..ITERATIONS {
-            context.update("Z", z);
+        let mut z = context.eval(&first)?;
+        for _ in 0..ITERATIONS {
+            context.z = z;
 
-            z = match context.eval(&iter)? {
-                Value::Complex(z) => z,
-                _ => {
-                    return Err(Error {
-                        message: "Iter did not evaluate to a complex number",
-                        position: init.position,
-                    });
-                }
-            };
+            z = context.eval(&iter)?;
 
-            if abs(z) >= 2.0 {
-                let pv = (i as f64 / ITERATIONS as f64 * 255.0) as u8;
-
-                pixel = Rgb([pv, 0, 0]);
+            if abs(z.v) >= 2.0 {
                 break;
             }
         }
 
-        pixels.push(pixel);
+        let (r, dr) = (abs(z.v), abs(z.d));
+        let distance = width as f64 * 0.8 * f64::ln(r) * r / dr;
+        let pv = std::cmp::min(f64::floor(255.0 * distance) as u8, 255);
+        pixels.push(Rgb([pv, pv, pv]));
     }
 
     Ok(pixels)
 }
 
-fn render(init: ast::Expr, iter: ast::Expr, width: u32, height: u32) -> Result<RgbImage, Error> {
+fn render(
+    init: ast::Expr,
+    first: ast::Expr,
+    iter: ast::Expr,
+    width: u32,
+    height: u32,
+) -> Result<RgbImage, Error> {
     let total = width * height;
     let length = total / num_cpus::get() as u32;
 
     let pixels = if length != 0 {
-        let exprs = Arc::new((init, iter));
+        let exprs = Arc::new((init, first, iter));
         let mut threads = Vec::new();
         let mut position = 0;
         while position < total {
@@ -122,7 +110,9 @@ fn render(init: ast::Expr, iter: ast::Expr, width: u32, height: u32) -> Result<R
             let exprs = exprs.clone();
 
             threads.push(thread::spawn(move || {
-                work(&exprs.0, &exprs.1, position, length, width, height)
+                work(
+                    &exprs.0, &exprs.1, &exprs.2, position, length, width, height,
+                )
             }));
 
             position += length;
@@ -135,7 +125,7 @@ fn render(init: ast::Expr, iter: ast::Expr, width: u32, height: u32) -> Result<R
                 Ok(acc)
             })?
     } else {
-        work(&init, &iter, 0, total, width, height)?
+        work(&init, &first, &iter, 0, total, width, height)?
     };
 
     Ok(RgbImage::from_fn(width, height, |x, y| {
@@ -143,17 +133,18 @@ fn render(init: ast::Expr, iter: ast::Expr, width: u32, height: u32) -> Result<R
     }))
 }
 
-fn main() -> ExitCode {
+fn main() {
     let args = match Args::from_iter_safe(env::args()) {
         Ok(args) => args,
         Err(err) => {
             println!("{}", err);
-            return ExitCode::FAILURE;
+            return;
         }
     };
 
     let image = match render(
         args.init.0,
+        args.first.0,
         args.iter.0,
         args.width.into(),
         args.height.into(),
@@ -161,14 +152,12 @@ fn main() -> ExitCode {
         Ok(image) => image,
         Err(err) => {
             println!("Error: {}", err);
-            return ExitCode::FAILURE;
+            return;
         }
     };
 
     if let Err(err) = image.save(&args.output_path) {
         println!("Error saving image: {}", err);
-        return ExitCode::FAILURE;
+        return;
     }
-
-    ExitCode::SUCCESS
 }

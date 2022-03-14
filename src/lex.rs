@@ -14,74 +14,60 @@ pub enum TokenKind {
     Sub,
     Mul,
     Div,
-    Ident(String),
+    Pow,
+    Ident(u8),
     Real(f64),
     Imag(f64),
 }
 
 pub fn tokenize(input: &str) -> Result<Vec<Token>, Error> {
     let mut tokens = Vec::new();
-    let mut chars = input.chars().enumerate().map(|(i, c)| (i + 1, c));
+    let mut chars = input.as_bytes().iter().enumerate();
     let mut last = None;
 
     while let Some((i, c)) = last.take().or_else(|| chars.next()) {
         let kind = match c {
-            '(' => TokenKind::LParen,
-            ')' => TokenKind::RParen,
-            '+' => TokenKind::Add,
-            '-' => TokenKind::Sub,
-            '*' => TokenKind::Mul,
-            '/' => TokenKind::Div,
-            'a'..='z' | 'A'..='Z' | '_' => {
-                let mut data = c.to_string();
-
-                while let Some((i, c)) = chars.next() {
-                    match c {
-                        'a'..='z' | 'A'..='Z' | '_' | '0'..='9' => data.push(c),
-                        _ => {
-                            last = Some((i, c));
-                            break;
-                        }
-                    }
-                }
-
-                if data == "i" {
-                    TokenKind::Imag(1.0)
-                } else {
-                    TokenKind::Ident(data)
-                }
-            }
-            '0'..='9' => {
+            b'(' => TokenKind::LParen,
+            b')' => TokenKind::RParen,
+            b'+' => TokenKind::Add,
+            b'-' => TokenKind::Sub,
+            b'*' => TokenKind::Mul,
+            b'/' => TokenKind::Div,
+            b'^' => TokenKind::Pow,
+            b'w' | b'h' | b'x' | b'y' | b'c' | b'z' => TokenKind::Ident(*c),
+            b'i' => TokenKind::Imag(1.0),
+            b'0'..=b'9' => {
                 let mut dot = false;
                 let mut complex = false;
-                let mut data = c.to_string();
+                let mut end = i + 1;
 
                 while let Some((i, c)) = chars.next() {
                     match c {
-                        '.' => {
+                        b'.' => {
                             if dot {
                                 last = Some((i, c));
                                 break;
                             }
 
                             dot = true;
-                            data.push(c);
                         }
-                        'i' => {
+                        b'i' => {
                             complex = true;
+                            end = i;
                             break;
                         }
-                        '0'..='9' => data.push(c),
+                        b'0'..=b'9' => continue,
                         _ => {
                             last = Some((i, c));
+                            end = i;
                             break;
                         }
                     }
                 }
 
-                let n = data.parse::<f64>().map_err(|_| Error {
+                let n = input[i..end].parse::<f64>().map_err(|_| Error {
                     message: "Invalid floating point literal",
-                    position: i,
+                    position: i + 1,
                 })?;
 
                 if complex {
@@ -90,18 +76,18 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>, Error> {
                     TokenKind::Real(n)
                 }
             }
-            ' ' | '\t' => continue,
+            b' ' | b'\t' => continue,
             _ => {
                 return Err(Error {
                     message: "Unexpected character",
-                    position: i,
+                    position: i + 1,
                 });
             }
         };
 
         tokens.push(Token {
             kind: kind,
-            position: i,
+            position: i + 1,
         });
     }
 
